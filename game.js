@@ -777,10 +777,34 @@ window.addEventListener("resize", function () {
 */
 
 var canvas = document.getElementById("renderCanvas");
-
+let t = 0;
 var startRenderLoop = function (engine, canvas) {
     engine.runRenderLoop(function () {
         if (sceneToRender && sceneToRender.activeCamera) {
+            t++;
+            console.log(scene.meshes[0]._absolutePosition);
+            let player = {x: scene.meshes[0]._absolutePosition._x, y: scene.meshes[0]._absolutePosition._y, z: scene.meshes[0]._absolutePosition._z};
+            for (var i = 0; i < links.length; i+=1) {
+                if (Math.sqrt((player.x-links[i].pos.x)**2+(player.y-links[i].pos.y)**2+(player.z-links[i].pos.z)**2) < links[i].radius && links[i].active == true) {
+                    console.log('in range');
+                    if (t%15) {
+                        var guiTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
+                        // create a text block and add it to the GUI
+                        var textBlock = new BABYLON.GUI.TextBlock();
+                        textBlock.text = `Press [f] to open ${links[i].name}!`;
+                        textBlock.color = "white";
+                        textBlock.fontSize = 72;
+                        guiTexture.addControl(textBlock);
+                        setTimeout(function() {
+                            guiTexture.removeControl(textBlock);
+                        }, 20);
+                    }
+                    if (keyboard['f']) {
+                        window.open(links[i].link, "_blank");
+                        keyboard['f'] = false;
+                    }
+                }
+            }
             sceneToRender.render();
         }
     });
@@ -897,13 +921,36 @@ class Playground {
         slide.rotation.x += Math.PI / 3;
         slide.checkCollisions = true;
         obstacles.push(slide);
-        // Ground mesh (white)
-        const ground = BABYLON.MeshBuilder.CreateGround('', { width: 100, height: 100 }, scene);
+        temp = [];
+        basicHouse(20, 0, -30, 0, 0);
+        for (let thing = 0; thing < temp.length; thing++) {
+            obstacles.push(temp[thing]);
+        }
+        
+        // create a flat ground
+        var ground = BABYLON.MeshBuilder.CreateGround("ground", {width: mapsize, height: mapsize, subdivisions: mapsize/2}, scene);
+        const ground2 = BABYLON.MeshBuilder.CreateGround("ground", {width: mapsize, height: mapsize, subdivisions: mapsize/2}, scene);
+
+        
+        // get the vertex data from the ground mesh
+        var vertexData = BABYLON.VertexData.ExtractFromMesh(ground);
+
+        // modify the height of each vertex randomly
+        var positions = vertexData.positions;
+        for (var i = 0; i < positions.length; i += 3) {
+            positions[i + 1] = (Math.random()-0.5)*0.25;
+        }
+
+        // apply the modified vertex data to the ground mesh
+        vertexData.applyToMesh(ground);
+
         const groundMaterial = new BABYLON.StandardMaterial('', scene);
-        groundMaterial.diffuseColor = new BABYLON.Color3(1, 1, 1);
+        groundMaterial.diffuseColor = new BABYLON.Color4(0.8359375, 0.4140625, 0.234375);
         ground.material = groundMaterial;
-        ground.checkCollisions = true;
+        ground2.material = groundMaterial;
+        ground2.checkCollisions = true;
         obstacles.push(ground);
+        obstacles.push(ground2);
         bottom.physicsImpostor = new BABYLON.PhysicsImpostor(bottom, BABYLON.PhysicsImpostor.SphereImpostor, {
             mass: 0,
         }, scene);
@@ -940,7 +987,7 @@ class Playground {
             mass: 0,
             friction: 0
         }, scene);
-        ground.physicsImpostor = new BABYLON.PhysicsImpostor(ground, BABYLON.PhysicsImpostor.BoxImpostor, {
+        ground2.physicsImpostor = new BABYLON.PhysicsImpostor(ground2, BABYLON.PhysicsImpostor.BoxImpostor, {
             mass: 0,
             friction: 1
         }, scene);
@@ -1097,3 +1144,145 @@ initFunction().then(() => {sceneToRender = scene
 window.addEventListener("resize", function () {
     engine.resize();
 });
+
+const sensitivity = 200; // larger is slower
+
+var canvas = document.getElementById("renderCanvas");
+
+var windR = 0; // wind direction
+var windS = 0.1; // wind speed
+var cdist = 1500; // cloud spread
+const mapsize = 500; // Size of the map
+let keyboard = {};
+let temp = [];
+let links = [
+    {
+        name: 'Edward\'s Door', 
+        link: `https://ed.toomwn.xyz/`, 
+        pos: {x: 20, y: 2, z: -10}, 
+        radius: 5, 
+        active: true, 
+    },
+];
+
+window.onkeyup = function(e) { keyboard[e.key.toLowerCase()] = false; }
+window.onkeydown = function(e) { keyboard[e.key.toLowerCase()] = true; }
+
+function rect(w, h, d, x, y, z, rx, ry, material, x2, y2, z2, rx2, ry2, collision) {
+    var sandMaterial = new BABYLON.StandardMaterial("sandMaterial", scene);
+    sandMaterial.diffuseColor = new BABYLON.Color3(0.82, 0.66, 0.42);
+
+    var rockMaterial = new BABYLON.StandardMaterial("rockMaterial", scene);
+    rockMaterial.diffuseColor = new BABYLON.Color3(0.5, 0.5, 0.5);
+
+    var cactusMaterial = new BABYLON.StandardMaterial("cactusMaterial", scene);
+    cactusMaterial.diffuseColor = new BABYLON.Color3(0, 1, 0);
+
+    var cloudMaterial = new BABYLON.StandardMaterial("cloudMaterial", scene);
+    cloudMaterial.diffuseColor = new BABYLON.Color3(1, 1, 1);
+    cloudMaterial.emissiveColor = new BABYLON.Color3(1, 1, 1);
+    var block = BABYLON.MeshBuilder.CreateBox("box", { width: w, height: h, depth: d}, scene);
+    switch (material) {
+        case 0:
+            var a = new BABYLON.StandardMaterial("0Material", scene);
+            a.diffuseColor = new BABYLON.Color3(0.8, 0.9, 1);
+            cloudMaterial.emissiveColor = new BABYLON.Color3(1, 1, 1);
+            block.material = a;
+            break;
+        case 1:
+            var a = new BABYLON.StandardMaterial("1Material", scene);
+            a.diffuseColor = new BABYLON.Color3(0.7, 0.7, 0.7);
+            block.material = a;
+            break;
+        case 2:
+            var a = new BABYLON.StandardMaterial("2Material", scene);
+            a.diffuseColor = new BABYLON.Color3(0.8, 0.8, 1);
+            block.material = a;
+            break;
+        case 3:
+            var a = new BABYLON.StandardMaterial("3Material", scene);
+            a.diffuseColor = new BABYLON.Color3(1, 1, 1);
+            block.material = a;
+            break;
+        case 4:
+            var a = new BABYLON.StandardMaterial("4Material", scene);
+            a.diffuseColor = new BABYLON.Color3(0.9, 0.9, 0.9);
+            block.material = a;
+            break;
+        case 5:
+            var a = new BABYLON.StandardMaterial("5Material", scene);
+            a.diffuseColor = new BABYLON.Color3(0.9, 0.9, 0.3);
+            block.material = a;
+            break;
+        default:
+            var a = new BABYLON.StandardMaterial("-1Material", scene);
+            a.diffuseColor = new BABYLON.Color3(0.3, 0.3, 0.5);
+            block.material = a;
+            break;
+    }
+    block.position = new BABYLON.Vector3(x + x2, y + y2, z + z2);
+    block.rotation.x = rx + rx2;
+    block.rotation.y = ry + ry2;
+    if (collision) {
+        block.checkCollisions = true;
+        block.physicsImpostor = new BABYLON.PhysicsImpostor(block, BABYLON.PhysicsImpostor.BoxImpostor, {
+            mass: 0,
+            friction: 0
+        }, scene);
+    }
+    temp.push(block);
+    return;
+}
+
+function basicDoor(x, y, z, rx, ry) {
+    rect(1.75, 3, 0.25, 0, 2, 0.01, 0, 0, 1, x, y, z , rx, ry, false);
+    rect(1.75, 0.25, 0.25, 0, 0.625, 0.125, 0, 0, 4, x, y, z , rx, ry, false);
+    rect(1.75, 0.25, 0.25, 0, 3.375, 0.125, 0, 0, 4, x, y, z , rx, ry, false);
+    rect(0.25, 3, 0.25, 0.75, 2, 0.125, 0, 0, 4, x, y, z , rx, ry, false);
+    rect(0.25, 3, 0.25, -0.75, 2, 0.125, 0, 0, 4, x, y, z , rx, ry, false);
+    rect(0.25, 3, 0.25, 0, 2, 0.125, 0, 0, 4, x, y, z , rx, ry, false);
+    rect(1.75, 0.25, 0.25, 0, 2, 0.125, 0, 0, 4, x, y, z , rx, ry, false);
+    rect(0.1, 0.1, 0.1, -0.72, 2, 0.35, 0, 0, 5, x, y, z , rx, ry, false);
+    rect(0.05, 0.05, 0.15, -0.72, 2, 0.275, 0, 0, 5, x, y, z , rx, ry, false);
+    return;
+}
+
+function basicWindow(x, y, z, rx, ry) {
+    rect(1.75, 1.75, 0.25, 0, 1.5, 0.01, 0, 0, 0, x, y, z , rx, ry, true);
+    rect(1.75, 0.25, 0.25, 0, 0.75, 0.125, 0, 0, 4, x, y, z , rx, ry, false);
+    rect(1.75, 0.25, 0.25, 0, 2.25, 0.125, 0, 0, 4, x, y, z , rx, ry, false);
+    rect(0.25, 1.75, 0.25, 0.75, 1.5, 0.125, 0, 0, 4, x, y, z , rx, ry, false);
+    rect(0.25, 1.75, 0.25, -0.75, 1.5, 0.125, 0, 0, 4, x, y, z , rx, ry, false);
+    return;
+}
+
+function basicHouse(x, y, z, rx, ry) {
+    // Main Structure
+    rect(16, 1, 36, 0, 0, 0, 0, 0, 1, x, y, z , rx, ry, true);
+    rect(14, 5, 0.25, 0, 3, -17, 0, 0, 2, x, y, z , rx, ry, true);
+    rect(14, 5, 0.25, 0, 3, 17, 0, 0, 2, x, y, z , rx, ry, true);
+    rect(0.25, 5, 34, -7, 3, 0, 0, 0, 2, x, y, z , rx, ry, true);
+    rect(0.25, 5, 34, 7, 3, 0, 0, 0, 2, x, y, z , rx, ry, true);
+    rect(0.5, 5, 0.5, 7.25, 3, 17.25, 0, 0, 3, x, y, z , rx, ry, true);
+    rect(0.5, 5, 0.5, 7.25, 3, -17.25, 0, 0, 3, x, y, z , rx, ry, true);
+    rect(0.5, 5, 0.5, -7.25, 3, 17.25, 0, 0, 3, x, y, z , rx, ry, true);
+    rect(0.5, 5, 0.5, -7.25, 3, -17.25, 0, 0, 3, x, y, z , rx, ry, true);
+    rect(0.5, 5, 0.5, -7.25, 3, -17.25, 0, 0, 3, x, y, z , rx, ry, true);
+    rect(0.5, 0.5, 34, -7.25, 5.25, 0, 0, 0, 3, x, y, z , rx, ry, true);
+    rect(0.5, 0.5, 34, 7.25, 5.25, 0, 0, 0, 3, x, y, z , rx, ry, true);
+    rect(14, 0.5, 0.5, 0, 5.25, 17.25, 0, 0, 3, x, y, z , rx, ry, true);
+    rect(14, 0.5, 0.5, 0, 5.25, -17.25, 0, 0, 3, x, y, z , rx, ry, true);
+    basicDoor(x, y, z+17, rx, ry)
+    basicWindow(x+3, y+0.5, z+17, rx, ry);
+    basicWindow(x+3, y+2, z+17, rx, ry);
+    basicWindow(x+4.5, y+0.5, z+17, rx, ry);
+    basicWindow(x+4.5, y+2, z+17, rx, ry);
+    basicWindow(x-3, y+0.5, z+17, rx, ry);
+    basicWindow(x-3, y+2, z+17, rx, ry);
+    basicWindow(x-4.5, y+0.5, z+17, rx, ry);
+    basicWindow(x-4.5, y+2, z+17, rx, ry);
+    rect(3.5, 0.25, 0.5, -3.75, 1.225, 17.375, 0, 0, 3, x, y, z , rx, ry, true);
+    rect(3.5, 0.25, 0.5, 3.75, 1.225, 17.375, 0, 0, 3, x, y, z , rx, ry, true);
+    return;
+}
+
