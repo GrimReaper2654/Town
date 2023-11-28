@@ -778,30 +778,32 @@ window.addEventListener("resize", function () {
 
 var canvas = document.getElementById("renderCanvas");
 let t = 0;
+
 var startRenderLoop = function (engine, canvas) {
     engine.runRenderLoop(function () {
         if (sceneToRender && sceneToRender.activeCamera) {
             t++;
-            console.log(scene.meshes[0]._absolutePosition);
+            //console.log(scene.meshes[0]._absolutePosition);
             let player = {x: scene.meshes[0]._absolutePosition._x, y: scene.meshes[0]._absolutePosition._y, z: scene.meshes[0]._absolutePosition._z};
             for (var i = 0; i < links.length; i+=1) {
                 if (Math.sqrt((player.x-links[i].pos.x)**2+(player.y-links[i].pos.y)**2+(player.z-links[i].pos.z)**2) < links[i].radius && links[i].active == true) {
-                    console.log('in range');
-                    if (t%15) {
+                    if (!links[i].textBlock) {
                         var guiTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
                         // create a text block and add it to the GUI
-                        var textBlock = new BABYLON.GUI.TextBlock();
-                        textBlock.text = `Press [f] to open ${links[i].name}!`;
-                        textBlock.color = "white";
-                        textBlock.fontSize = 72;
-                        guiTexture.addControl(textBlock);
-                        setTimeout(function() {
-                            guiTexture.removeControl(textBlock);
-                        }, 20);
+                        links[i].textBlock = new BABYLON.GUI.TextBlock();
+                        links[i].textBlock.text = `Press [f] to open ${links[i].name}!`;
+                        links[i].textBlock.color = "white";
+                        links[i].textBlock.fontSize = 72;
+                        guiTexture.addControl(links[i].textBlock);
                     }
                     if (keyboard['f']) {
                         window.open(links[i].link, "_blank");
                         keyboard['f'] = false;
+                    }
+                } else {
+                    if (links[i].textBlock) {
+                        links[i].textBlock.dispose();
+                        links[i].textBlock = null;
                     }
                 }
             }
@@ -896,7 +898,7 @@ class Playground {
         const cameraTargetMesh = BABYLON.MeshBuilder.CreateBox('', { height: 2 }, scene);
         cameraTargetMesh.visibility = 0;
         cameraTargetMesh.setParent(compoundBody);
-        cameraTargetMesh.position = new BABYLON.Vector3(0, 0.5, 1);
+        cameraTargetMesh.position = new BABYLON.Vector3(0, 0.5, 0);
         camera.lockedTarget = cameraTargetMesh;
         // Obstacles include pillar and ground
         const obstacles = new Array();
@@ -1071,7 +1073,7 @@ class Playground {
         let onObject = false;
         const jump = () => {
             compoundBody.physicsImpostor.wakeUp();
-            compoundBody.physicsImpostor.setLinearVelocity(new BABYLON.Vector3(0, 7, 0));
+            compoundBody.physicsImpostor.setLinearVelocity(new BABYLON.Vector3(0, 5, 0));
             onObject = false;
         };
         const move = (command) => {
@@ -1089,12 +1091,17 @@ class Playground {
             direction.x = -(Number(command.moveForwardKeyDown) - Number(command.moveBackwardKeyDown));
             direction.z = Number(command.moveRightKeyDown) - Number(command.moveLeftKeyDown);
             direction.normalize();
-            velocity.x = 0;
-            velocity.z = 0;
+            if (onObject) {
+                velocity.x *= 0.9;
+                velocity.z *= 0.9;
+            } else {
+                velocity.x *= 0.99;
+                velocity.z *= 0.99;
+            }
             if (command.moveRightKeyDown || command.moveLeftKeyDown)
-                velocity.z = direction.z * delta / 300;
+                velocity.z = direction.z * delta / (keyboard.shift? 150 : 250);
             if (command.moveForwardKeyDown || command.moveBackwardKeyDown)
-                velocity.x = direction.x * delta / 300;
+                velocity.x = direction.x * delta / (keyboard.shift? 150 : 250);
             if (command.jumpKeyDown && onObject)
                 jump();
             const rotationAxis = BABYLON.Matrix.RotationAxis(BABYLON.Axis.Y, viewAngleY);
@@ -1162,6 +1169,7 @@ let links = [
         pos: {x: 20, y: 2, z: -10}, 
         radius: 5, 
         active: true, 
+        textBlock: null
     },
 ];
 
